@@ -1,6 +1,6 @@
 [submodule "lib/host-protocol"]
 	path = lib/host-protocol
-	url = https://github.com/Jiu-xiao/host-protocol.git
+	url =https://github.com/xrobot-org/host-protocol.git
 [submodule "stm32_cmsis"]
 	path = hw/mcu/st/cmsis_device_f4
 	url = https://github.com/STMicroelectronics/cmsis_device_f4.git
@@ -21,7 +21,7 @@
 	url = https://github.com/Jiu-xiao/OneMessageCPP.git
 [submodule "lib/cmsis_svd"]
 	path = lib/cmsis_svd
-	url = https://github.com/posborne/cmsis-svd.git
+	url = https://github.com/cmsis-svd/cmsis-svd-data
 [submodule "hw/mcu/st/stm32f1xx_hal_driver"]
 	path = hw/mcu/st/stm32f1xx_hal_driver
 	url = https://github.com/STMicroelectronics/stm32f1xx_hal_driver.git
@@ -30,10 +30,10 @@
 	url = https://github.com/STMicroelectronics/cmsis_device_f1.git
 [submodule "lib/Kconfiglib"]
 	path = lib/Kconfiglib
-	url = https://github.com/ulfalizer/Kconfiglib
+	url = https://github.com/ulfalizer/Kconfiglib.git
 [submodule "lib/mini_shell"]
 	path = lib/mini_shell
-	url = https://gitee.com/jiu-xiao/mini_shell.git
+	url = https://github.com/Jiu-xiao/mini_shell.git
 [submodule "hw/mcu/st/cmsis_device_f3"]
 	path = hw/mcu/st/cmsis_device_f3
 	url = https://github.com/STMicroelectronics/cmsis_device_f3.git
@@ -43,6 +43,24 @@
 [submodule "lib/magic_enum"]
 	path = lib/magic_enum
 	url = https://github.com/Neargye/magic_enum.git
-[submodule "hw/mcu/esp/ESP32_BleSerial"]
-	path = hw/mcu/esp/ESP32_BleSerial
-	url = https://github.com/avinabmalla/ESP32_BleSerial.git
+[submodule "hw/mcu/st/stm32g4xx_hal_driver"]
+	path = hw/mcu/st/stm32g4xx_hal_driver
+	url = https://github.com/STMicroelectronics/stm32g4xx_hal_driver.git
+[submodule "hw/mcu/st/cmsis_device_g4"]
+	path = hw/mcu/st/cmsis_device_g4
+	url = https://github.com/STMicroelectronics/cmsis_device_g4
+[submodule "lib/MiniFlashDB"]
+	path = lib/MiniFlashDB
+	url = https://github.com/Jiu-xiao/MiniFlashDB.git
+[submodule "lib/printf"]
+	path = lib/printf
+	url = https://github.com/xrobot-org/printf.git
+[submodule "hw/mcu/st/stm32g0xx_hal_driver"]
+	path = hw/mcu/st/stm32g0xx_hal_driver
+	url = https://github.com/STMicroelectronics/stm32g0xx_hal_driver.git
+[submodule "hw/mcu/st/cmsis_device_g0"]
+	path = hw/mcu/st/cmsis_device_g0
+	url = https://github.com/STMicroelectronics/cmsis_device_g0.git
+[submodule "lib/eigen"]
+	path = lib/eigen
+	url = https://gitlab.com/libeigen/eigen.git

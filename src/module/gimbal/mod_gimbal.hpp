@@ -1,7 +1,3 @@
-/*
- * 云台模组
- */
-
 #pragma once
 
 #include <comp_type.hpp>
@@ -24,7 +20,8 @@ class Gimbal {
   /* 云台运行模式 */
   typedef enum {
     RELAX, /* 放松模式，电机不输出。一般情况云台初始化之后的模式 */
-    ABSOLUTE, /* 绝对坐标系控制，控制在空间内的绝对姿态 */
+    ABSOLUTE,   /* 绝对坐标系控制，控制在空间内的绝对姿态 */
+    AUTOPATROL, /* 自动巡逻模式，云台yaw轴按sin曲线进行扫描 */
   } Mode;
 
   enum {
@@ -39,7 +36,8 @@ class Gimbal {
     SET_MODE_RELAX,
     SET_MODE_ABSOLUTE,
     START_AUTO_AIM,
-    STOP_AUTO_AIM
+    STOP_AUTO_AIM,
+    SET_AUTOPATROL,
   } GimbalEvent;
 
   typedef struct {
@@ -54,9 +52,15 @@ class Gimbal {
 
     Component::Type::Eulr mech_zero;
 
+    float patrol_range;
+    float patrol_omega;
+    float patrol_hight;
+
     struct {
       Component::Type::CycleValue pitch_max;
       Component::Type::CycleValue pitch_min;
+      Component::Type::CycleValue yaw_max;
+      Component::Type::CycleValue yaw_min;
     } limit;
 
     const std::vector<Component::CMD::EventMapItem> EVENT_MAP;
@@ -76,11 +80,13 @@ class Gimbal {
   static void DrawUIDynamic(Gimbal *gimbal);
 
  private:
-  float last_wakeup_;
+  uint64_t last_wakeup_ = 0;
 
-  float now_;
+  uint64_t now_ = 0;
 
-  float dt_;
+  float dt_ = 0.0f;
+
+  uint32_t autopatrol_start_time_ = 0;
 
   Param param_;
 

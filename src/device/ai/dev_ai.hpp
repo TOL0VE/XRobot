@@ -3,7 +3,6 @@
 #include <device.hpp>
 
 #include "comp_cmd.hpp"
-#include "comp_utils.hpp"
 #include "dev_ahrs.hpp"
 #include "dev_referee.hpp"
 #include "protocol.h"
@@ -32,6 +31,14 @@ class AI {
     uint32_t hp;
   } RefForAI;
 
+  typedef enum {
+    AI_OFFLINE = 128,
+    AI_FIND_TARGET,
+    AI_AUTOPATROL,
+    AI_TURN,
+    AI_FIRE_COMMAND,
+  } AIControlData;
+
   AI();
 
   bool StartRecv();
@@ -51,27 +58,38 @@ class AI {
   bool PackCMD();
 
  private:
-  bool ref_updated_;
-  float last_online_time_ = 0.0f;
+  bool ref_updated_ = false;
 
-  Protocol_DownPackage_t form_host_;
+  uint32_t last_online_time_ = 0;
+
+  Protocol_DownPackage_t from_host_{};
+
+  uint8_t notice_;
 
   struct {
-    RefereePckage ref;
-    MCUPckage mcu;
+    RefereePckage ref{};
+    MCUPckage mcu{};
   } to_host_;
 
-  RefForAI ref_;
+  RefForAI ref_{};
 
   System::Thread thread_;
 
   System::Semaphore data_ready_;
 
+  Message::Event event_;
+
   Message::Topic<Component::CMD::Data> cmd_tp_;
 
-  Component::CMD::Data cmd_;
+  Component::CMD::Data cmd_{};
 
-  Component::Type::Quaternion quat_;
-  Device::Referee::Data raw_ref_;
+  struct {
+    float yaw; /* 偏航角（Yaw angle） */
+    float pit; /* 俯仰角（Pitch angle） */
+    float rol; /* 翻滚角（Roll angle） */
+  } last_eulr_;
+
+  Component::Type::Quaternion quat_{};
+  Device::Referee::Data raw_ref_{};
 };
 }  // namespace Device

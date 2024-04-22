@@ -4,7 +4,6 @@
 #include "bsp_uart.h"
 #include "comp_crc16.hpp"
 #include "comp_crc8.hpp"
-#include "comp_utils.hpp"
 
 #define AI_CMD_LIMIT (0.08f)
 #define AI_CTRL_SENSE (1.0f / 90.0f)
@@ -12,15 +11,18 @@
 #define AI_LEN_TX_BUFF \
   (sizeof(Protocol_UpPackageMCU_t) + sizeof(Protocol_UpPackageReferee_t))
 
-static uint8_t rxbuf[AI_LEN_RX_BUFF];  // NOLINT(modernize-avoid-c-arrays)
-static uint8_t txbuf[AI_LEN_TX_BUFF];  // NOLINT(modernize-avoid-c-arrays)
+static uint8_t rxbuf[AI_LEN_RX_BUFF];
+static uint8_t txbuf[AI_LEN_TX_BUFF];
 
 using namespace Device;
 
-AI::AI() : data_ready_(false), cmd_tp_("cmd_ai") {
+AI::AI()
+    : data_ready_(false),
+      event_(Message::Event::FindEvent("cmd_event")),
+      cmd_tp_("cmd_ai") {
   auto rx_cplt_callback = [](void *arg) {
     AI *ai = static_cast<AI *>(arg);
-    ai->data_ready_.GiveFromISR();
+    ai->data_ready_.Post();
   };
 
   bsp_uart_register_callback(BSP_UART_AI, BSP_UART_RX_CPLT_CB, rx_cplt_callback,
@@ -29,14 +31,15 @@ AI::AI() : data_ready_(false), cmd_tp_("cmd_ai") {
   Component::CMD::RegisterController(this->cmd_tp_);
 
   auto ai_thread = [](AI *ai) {
-    auto quat_sub = Message::Subscriber("imu_quat", ai->quat_);
-    Message::Subscriber ref_sub("referee", ai->raw_ref_);
+    auto quat_sub =
+        Message::Subscriber<Component::Type::Quaternion>("imu_quat");
+    auto ref_sub = Message::Subscriber<Device::Referee::Data>("referee");
 
     while (1) {
       /* 接收指令 */
       ai->StartRecv();
 
-      if (ai->data_ready_.Take(0)) {
+      if (ai->data_ready_.Wait(0)) {
         ai->PraseHost();
       } else {
         ai->Offline();
@@ -46,10 +49,10 @@ AI::AI() : data_ready_(false), cmd_tp_("cmd_ai") {
       ai->PackCMD();
 
       /* 发送数据到上位机 */
-      quat_sub.DumpData();
+      quat_sub.DumpData(ai->quat_);
       ai->PackMCU();
 
-      if (ref_sub.DumpData()) {
+      if (ref_sub.DumpData(ai->raw_ref_)) {
         ai->PraseRef();
         ai->PackRef();
       }
@@ -65,14 +68,14 @@ AI::AI() : data_ready_(false), cmd_tp_("cmd_ai") {
 }
 
 bool AI::StartRecv() {
-  return bsp_uart_receive(BSP_UART_AI, rxbuf, sizeof(rxbuf), false) == HAL_OK;
+  return bsp_uart_receive(BSP_UART_AI, rxbuf, sizeof(rxbuf), false) == BSP_OK;
 }
 
 bool AI::PraseHost() {
-  if (Component::CRC16::Verify(rxbuf, sizeof(this->form_host_))) {
+  if (Component::CRC16::Verify(rxbuf, sizeof(this->from_host_))) {
     this->cmd_.online = true;
-    this->last_online_time_ = bsp_time_get();
-    memcpy(&(this->form_host_), rxbuf, sizeof(this->form_host_));
+    this->last_online_time_ = bsp_time_get_ms();
+    memcpy(&(this->from_host_), rxbuf, sizeof(this->from_host_));
     memset(rxbuf, 0, AI_LEN_RX_BUFF);
     return true;
   }
@@ -96,7 +99,7 @@ bool AI::StartTrans() {
 
 bool AI::Offline() {
   /* 离线移交控制权 */
-  if (bsp_time_get() - this->last_online_time_ > 0.2f) {
+  if (bsp_time_get_ms() - this->last_online_time_ > 200) {
     memset(&this->cmd_, 0, sizeof(cmd_));
     this->cmd_.online = false;
     this->cmd_.ctrl_source = Component::CMD::CTRL_SOURCE_AI;
@@ -133,34 +136,61 @@ bool AI::PackRef() {
 }
 
 bool AI::PackCMD() {
-  this->cmd_.gimbal.mode = Component::CMD::GIMBAL_ABSOLUTE_CTRL;
-
-  memcpy(&(this->cmd_.gimbal.eulr), &(this->form_host_.data.gimbal),
+  memcpy(&(this->cmd_.gimbal.eulr), &(this->from_host_.data.gimbal),
          sizeof(this->cmd_.gimbal.eulr));
 
   memcpy(&(this->cmd_.ext.extern_channel),
-         &(this->form_host_.data.extern_channel),
+         &(this->from_host_.data.extern_channel),
          sizeof(this->cmd_.ext.extern_channel));
 
-  memcpy(&(this->cmd_.chassis), &(this->form_host_.data.chassis_move_vec),
-         sizeof(this->form_host_.data.chassis_move_vec));
+  memcpy(&(this->cmd_.chassis), &(this->from_host_.data.chassis_move_vec),
+         sizeof(this->from_host_.data.chassis_move_vec));
+
+  this->notice_ = this->from_host_.data.notice;
+
+  memcpy(&(this->last_eulr_), &(this->cmd_.gimbal.eulr),
+         sizeof(this->cmd_.gimbal.eulr));
 
   this->cmd_.ctrl_source = Component::CMD::CTRL_SOURCE_AI;
 
   this->cmd_tp_.Publish(this->cmd_);
+
+  if (!Component::CMD::Online()) {
+    return false;
+  }
+
+  /* 控制权在AI */
+  if (Component::CMD::GetCtrlSource() == Component::CMD::CTRL_SOURCE_AI) {
+    if (this->cmd_.online) {
+      if (this->notice_ == AI_NOTICE_AUTO_AIM) {
+        this->cmd_.gimbal.mode = Component::CMD::GIMBAL_ABSOLUTE_CTRL;
+        this->event_.Active(AI_FIND_TARGET);
+      } else if (this->notice_ == AI_NOTICE_FIRE) {
+        this->cmd_.gimbal.mode = Component::CMD::GIMBAL_ABSOLUTE_CTRL;
+        this->event_.Active(AI_FIND_TARGET);
+        this->event_.Active(AI_FIRE_COMMAND);
+      } else {
+        this->event_.Active(AI_AUTOPATROL);
+      }
+    } else {
+      this->event_.Active(AI_OFFLINE);
+    }
+  }
+
+  this->notice_ = 0;
 
   return true;
 }
 
 void AI::PraseRef() {
 #if RB_HERO
-  this->ref_.ball_speed = this->ref_.data_.robot_status.launcher_42_speed_limit;
+  this->ref_.ball_speed = BULLET_SPEED_LIMIT_42MM
 #else
-  this->ref_.ball_speed =
-      this->raw_ref_.robot_status.launcher_id1_17_speed_limit;
+  this->ref_.ball_speed = BULLET_SPEED_LIMIT_17MM;
 #endif
 
-  this->ref_.max_hp = this->raw_ref_.robot_status.max_hp;
+                          this->ref_.max_hp =
+      this->raw_ref_.robot_status.max_hp;
 
   this->ref_.hp = this->raw_ref_.robot_status.remain_hp;
 
@@ -171,9 +201,10 @@ void AI::PraseRef() {
   }
   this->ref_.status = this->raw_ref_.status;
 
-  if (this->raw_ref_.rfid.high_ground == 1) {
+  if (this->raw_ref_.rfid.own_highland_annular == 1 ||
+      this->raw_ref_.rfid.enemy_highland_annular == 1) {
     this->ref_.robot_buff |= AI_RFID_SNIP;
-  } else if (this->raw_ref_.rfid.energy_mech == 1) {
+  } else if (this->raw_ref_.rfid.own_energy_mech_activation == 1) {
     this->ref_.robot_buff |= AI_RFID_BUFF;
   } else {
     this->ref_.robot_buff = 0;

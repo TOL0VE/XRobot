@@ -62,10 +62,10 @@ Chassis<Motor, MotorParam>::Chassis(Param& param, float control_freq)
   this->setpoint_.motor_rotational_speed =
       reinterpret_cast<float*>(System::Memory::Malloc(
           this->mixer_.len_ * sizeof(*this->setpoint_.motor_rotational_speed)));
-  ASSERT(this->setpoint_.motor_rotational_speed);
+  XB_ASSERT(this->setpoint_.motor_rotational_speed);
 
   auto event_callback = [](ChassisEvent event, Chassis* chassis) {
-    chassis->ctrl_lock_.Take(UINT32_MAX);
+    chassis->ctrl_lock_.Wait(UINT32_MAX);
 
     switch (event) {
       case SET_MODE_RELAX:
@@ -84,38 +84,40 @@ Chassis<Motor, MotorParam>::Chassis(Param& param, float control_freq)
         break;
     }
 
-    chassis->ctrl_lock_.Give();
+    chassis->ctrl_lock_.Post();
   };
 
   Component::CMD::RegisterEvent<Chassis*, ChassisEvent>(event_callback, this,
                                                         this->param_.EVENT_MAP);
 
   auto chassis_thread = [](Chassis* chassis) {
-    auto raw_ref_sub = Message::Subscriber("referee", chassis->raw_ref_);
+    auto raw_ref_sub = Message::Subscriber<Device::Referee::Data>("referee");
+    auto cmd_sub =
+        Message::Subscriber<Component::CMD::ChassisCMD>("cmd_chassis");
 
-    auto yaw_sub = Message::Subscriber("chassis_yaw", chassis->yaw_);
+    auto yaw_sub = Message::Subscriber<float>("chassis_yaw");
 
-    auto cmd_sub = Message::Subscriber("cmd_chassis", chassis->cmd_);
+    auto cap_sub = Message::Subscriber<Device::Cap::Info>("cap_info");
 
-    auto cap_sub = Message::Subscriber("cap_info", chassis->cap_);
+    uint32_t last_online_time = bsp_time_get_ms();
 
     while (1) {
       /* 读取控制指令、电容、裁判系统、电机反馈 */
-      yaw_sub.DumpData();
-      raw_ref_sub.DumpData();
-      cmd_sub.DumpData();
-      cap_sub.DumpData();
+      cmd_sub.DumpData(chassis->cmd_);
+      raw_ref_sub.DumpData(chassis->raw_ref_);
+      yaw_sub.DumpData(chassis->yaw_);
+      cap_sub.DumpData(chassis->cap_);
 
       /* 更新反馈值 */
       chassis->PraseRef();
 
-      chassis->ctrl_lock_.Take(UINT32_MAX);
+      chassis->ctrl_lock_.Wait(UINT32_MAX);
       chassis->UpdateFeedback();
       chassis->Control();
-      chassis->ctrl_lock_.Give();
+      chassis->ctrl_lock_.Post();
 
       /* 运行结束，等待下一次唤醒 */
-      chassis->thread_.SleepUntil(2);
+      chassis->thread_.SleepUntil(2, last_online_time);
     }
   };
 
@@ -139,7 +141,8 @@ template <typename Motor, typename MotorParam>
 void Chassis<Motor, MotorParam>::Control() {
   this->now_ = bsp_time_get();
 
-  this->dt_ = this->now_ - this->last_wakeup_;
+  this->dt_ = TIME_DIFF(this->last_wakeup_, this->now_);
+
   this->last_wakeup_ = this->now_;
 
   /* ctrl_vec -> move_vec 控制向量和真实的移动向量之间有一个换算关系 */
@@ -192,7 +195,7 @@ void Chassis<Motor, MotorParam>::Control() {
       break;
     }
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
       return;
   }
 
@@ -211,7 +214,7 @@ void Chassis<Motor, MotorParam>::Control() {
       if (cap_.online_) {
         percentage = cap_.percentage_;
       } else if (ref_.status == Device::Referee::RUNNING) {
-        percentage = this->ref_.chassis_pwr_buff / 30.0f;
+        percentage = this->ref_.chassis_pwr_buff / 60.0f;
       } else {
         percentage = 1.0f;
       }
@@ -234,7 +237,7 @@ void Chassis<Motor, MotorParam>::Control() {
       }
       break;
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
       return;
   }
 }
@@ -250,7 +253,9 @@ void Chassis<Motor, MotorParam>::PraseRef() {
 
 template <typename Motor, typename MotorParam>
 float Chassis<Motor, MotorParam>::CalcWz(const float LO, const float HI) {
-  float wz_vary = fabsf(0.2f * sinf(ROTOR_OMEGA * this->now_)) + LO;
+  float wz_vary = fabsf(0.2f * sinf(ROTOR_OMEGA *
+                                    (static_cast<float>(bsp_time_get_ms())))) +
+                  LO;
   clampf(&wz_vary, LO, HI);
   return wz_vary;
 }

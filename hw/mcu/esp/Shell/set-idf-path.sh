@@ -39,7 +39,7 @@ done
 
 for i in ${path_list[*]}; do
     echo $i
-    echo export PATH=\$PATH:$i >>~/.idf_profile
+    echo export PATH=$i:\$PATH >>~/.idf_profile
 done
 
 idf_path=$(echo $IDF_PATH)

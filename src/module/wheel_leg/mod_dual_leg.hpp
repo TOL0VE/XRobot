@@ -88,11 +88,11 @@ class WheelLeg {
  private:
   Param param_;
 
-  float dt_;
+  float dt_ = 0.0f;
 
-  float last_wakeup_;
+  uint64_t last_wakeup_ = 0;
 
-  float now_;
+  uint64_t now_ = 0;
 
   std::array<Component::PosActuator*, LEG_NUM * LEG_MOTOR_NUM> leg_actuator_;
 

@@ -61,10 +61,10 @@ Chassis<Motor, MotorParam>::Chassis(Param& param, float control_freq)
   this->setpoint_.motor_rotational_speed =
       reinterpret_cast<float*>(System::Memory::Malloc(
           this->mixer_.len_ * sizeof(*this->setpoint_.motor_rotational_speed)));
-  ASSERT(this->setpoint_.motor_rotational_speed);
+  XB_ASSERT(this->setpoint_.motor_rotational_speed);
 
   auto event_callback = [](ChassisEvent event, Chassis* chassis) {
-    chassis->ctrl_lock_.Take(UINT32_MAX);
+    chassis->ctrl_lock_.Wait(UINT32_MAX);
 
     switch (event) {
       case SET_MODE_RELAX:
@@ -86,35 +86,27 @@ Chassis<Motor, MotorParam>::Chassis(Param& param, float control_freq)
         break;
     }
 
-    chassis->ctrl_lock_.Give();
+    chassis->ctrl_lock_.Post();
   };
 
   Component::CMD::RegisterEvent<Chassis*, ChassisEvent>(event_callback, this,
                                                         this->param_.EVENT_MAP);
 
   auto chassis_thread = [](Chassis* chassis) {
-    // auto raw_ref_sub = Message::Subscriber("referee", chassis->raw_ref_);
-
-    // auto yaw_sub = Message::Subscriber("chassis_yaw", chassis->yaw_);
-
-    auto cmd_sub = Message::Subscriber("cmd_chassis", chassis->cmd_);
-
-    // auto cap_sub = Message::Subscriber("cap_info", chassis->cap_);
+    auto cmd_sub =
+        Message::Subscriber<Component::CMD::ChassisCMD>("cmd_chassis");
 
     while (1) {
       /* 读取控制指令、电容、裁判系统、电机反馈 */
-      // yaw_sub.DumpData();
-      // raw_ref_sub.DumpData();
-      cmd_sub.DumpData();
-      // cap_sub.DumpData();
+      cmd_sub.DumpData(chassis->cmd_);
 
       /* 更新反馈值 */
       chassis->PraseRef();
 
-      chassis->ctrl_lock_.Take(UINT32_MAX);
+      chassis->ctrl_lock_.Wait(UINT32_MAX);
       chassis->UpdateFeedback();
       chassis->Control();
-      chassis->ctrl_lock_.Give();
+      chassis->ctrl_lock_.Post();
 
       /* 运行结束，等待下一次唤醒 */
       chassis->thread_.SleepUntil(2);
@@ -141,7 +133,8 @@ template <typename Motor, typename MotorParam>
 void Chassis<Motor, MotorParam>::Control() {
   this->now_ = bsp_time_get();
 
-  this->dt_ = this->now_ - this->last_wakeup_;
+  this->dt_ = TIME_DIFF(this->last_wakeup_, this->now_);
+
   this->last_wakeup_ = this->now_;
   /* ctrl_vec -> move_vec 控制向量和真实的移动向量之间有一个换算关系 */
   /* 计算vx、vy */
@@ -202,7 +195,7 @@ void Chassis<Motor, MotorParam>::Control() {
       break;
     }
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
       return;
   }
 
@@ -245,7 +238,7 @@ void Chassis<Motor, MotorParam>::Control() {
       }
       break;
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
       return;
   }
 }

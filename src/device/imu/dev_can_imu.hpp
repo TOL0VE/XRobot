@@ -32,17 +32,17 @@ class IMU {
  private:
   Param param_;
 
-  float last_online_time_ = 0.0f;
+  uint32_t last_online_time_ = 0;
 
-  bool online_;
+  bool online_ = false;
 
   Message::Topic<Component::Type::Vector3> accl_tp_;
   Message::Topic<Component::Type::Vector3> gyro_tp_;
   Message::Topic<Component::Type::Eulr> eulr_tp_;
 
-  Component::Type::Vector3 accl_;
-  Component::Type::Vector3 gyro_;
-  Component::Type::Eulr eulr_;
+  Component::Type::Vector3 accl_{};
+  Component::Type::Vector3 gyro_{};
+  Component::Type::Eulr eulr_{};
 
   System::Queue<Device::Can::Pack> recv_ = System::Queue<Can::Pack>(4);
 

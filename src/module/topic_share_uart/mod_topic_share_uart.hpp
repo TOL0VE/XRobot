@@ -17,7 +17,7 @@ class TopicShareServerUart {
 
   TopicShareServerUart(Param& param)
       : param_(param), topic_(Message::Topic<Data>::Find(param_.topic_name)) {
-    ASSERT(topic_.om_topic_);
+    XB_ASSERT(topic_.om_topic_);
 
     auto task_fn = [](TopicShareServerUart* share) {
       share->topic_.PackData(share->data_);
@@ -66,7 +66,7 @@ class TopicShareClientUart {
 
   Message::Remote remote_;
 
-  std::array<uint8_t, 128> recv_buff;
+  std::array<uint8_t, 128> recv_buff{};
 
   System::Thread thread_;
 };

@@ -1,11 +1,6 @@
-#include <thread.hpp>
-#include <timer.hpp>
-
 #include "bsp_time.h"
 #include "bsp_wifi_client.h"
 #include "device.hpp"
-#include "om.hpp"
-#include "om_log.h"
 
 namespace Device {
 class NetConfig {
@@ -24,11 +19,11 @@ class NetConfig {
     if (Message::Topic<Data>::Find("net_info") == NULL) {
       Message::Topic<Data>("net_info", true);
     }
-    sub_ = new Message::Subscriber<Data>("net_info", data_);
+    sub_ = new Message::Subscriber<Data>("net_info");
 
     auto thread_fn = [](NetConfig* net) {
       while (true) {
-        if (net->sub_->DumpData()) {
+        if (net->sub_->DumpData(net->data_)) {
           if (net->data_.time != net->last_config_time &&
               net->data_.connected) {
             net->status_ = READY_CONNECT;
@@ -65,15 +60,15 @@ class NetConfig {
                          net->connect_wait_time / 1000);
             break;
         }
-        net->thread_.Sleep(100);
+        net->thread_.Sleep(1000);
       }
     };
     thread_.Create(thread_fn, this, "net_config", 2048, System::Thread::HIGH);
   }
 
-  Data data_;
+  Data data_{};
 
-  Status status_;
+  Status status_ = NOT_CONNECTED;
 
   uint32_t last_config_time = 0;
 

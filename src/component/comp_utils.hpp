@@ -4,11 +4,15 @@
 
 #pragma once
 
-#include <cfloat>
-#include <cmath>
-#include <cstdint>
-
 #include "comp_type.hpp"
+
+/**
+ * @brief 计算时间戳相差秒数
+ *
+ */
+#define TIME_DIFF(_start, _end) ((float)(_end - _start) / 1000000.0f)
+#define TIME_DIFF_US(_start, _end) ((float)(_end - _start) / 1000000.0f)
+#define TIME_DIFF_MS(_start, _end) ((float)(_end - _start) / 1000.0f)
 
 /**
  * @brief 角度到弧度转换
@@ -49,64 +53,6 @@
   })
 
 #endif
-
-#ifdef MCU_DEBUG_BUILD
-
-/**
- * @brief 如果表达式的值为假则运行处理函数
- *
- */
-#define ASSERT(expr)                     \
-  do {                                   \
-    if (!(expr)) {                       \
-      verify_failed(__FILE__, __LINE__); \
-    }                                    \
-  } while (0)
-#else
-
-/**
- * @brief 未定DEBUG，表达式不会运行，断言被忽略
- *
- */
-#define ASSERT(expr) ((void)(0))
-#endif
-
-#ifdef MCU_DEBUG_BUILD
-
-/**
- * @brief 如果表达式的值为假则运行处理函数
- *
- */
-#define VERIFY(expr)                     \
-  do {                                   \
-    if (!(expr)) {                       \
-      verify_failed(__FILE__, __LINE__); \
-    }                                    \
-  } while (0)
-#else
-
-/**
- * @brief 表达式会运行，忽略表达式结果
- *
- */
-#define VERIFY(expr) ((void)(expr))
-#endif
-
-/**
- * @brief 获取结构体或者联合成员的容器
- *
- */
-#define CONTAINER_OF(ptr, type, member)                \
-  ({                                                   \
-    const typeof(((type *)0)->member) *__mptr = (ptr); \
-    (type *)((char *)__mptr - offsetof(type, member)); \
-  })
-
-/**
- * @brief 获取数组长度
- *
- */
-#define ARRAY_LEN(array) (sizeof((array)) / sizeof(*(array)))
 
 /**
  * @brief 计算平方根倒数
@@ -152,16 +98,6 @@ float signf(float x);
  */
 float bullet_speed_to_fric_rpm(float bullet_speed, float fric_radius,
                                bool is17mm);
-
-bool gyro_is_stable(Component::Type::Vector3 *gyro);
-
-/**
- * @brief 断言失败处理
- *
- * @param file 文件名
- * @param line 行号
- */
-void verify_failed(const char *file, uint32_t line);
 
 int float_to_uint(float x, float x_min, float x_max, int bits);
 

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <array>
-#include <comp_type.hpp>
 #include <module.hpp>
 
 #include "comp_actuator.hpp"
@@ -62,18 +60,18 @@ class Balance {
 
   typedef std::array<float, CTRL_CH_NUM> Output;
 
-  typedef struct {
-    Component::Type::CycleValue init_g_center;
+  typedef struct Param {
+    Component::Type::CycleValue init_g_center{};
 
     const std::vector<Component::CMD::EventMapItem> EVENT_MAP;
 
-    float speed_filter_cutoff_freq;
+    float speed_filter_cutoff_freq{};
 
     std::array<MotorParam, WHEEL_NUM> motor_param;
 
     std::array<Component::PID::Param, CTRL_CH_NUM> pid_param;
 
-    Component::PID::Param offset_pid;
+    Component::PID::Param offset_pid{};
   } Param;
 
   typedef struct {
@@ -104,13 +102,14 @@ class Balance {
  private:
   Param param_;
 
-  float dt_;
+  float dt_ = 0.0f;
 
-  float last_wakeup_;
+  uint64_t last_wakeup_ = 0;
 
-  float now_;
+  uint64_t now_ = 0;
 
-  float last_detect_time_ = 0.0f;
+  uint32_t last_detect_time_ = 0;
+
   float last_detect_dir_ = 1.0f;
   uint16_t slip_counter_ = 0;
 

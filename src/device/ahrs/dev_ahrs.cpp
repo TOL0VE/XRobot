@@ -17,21 +17,21 @@ AHRS::AHRS()
       accl_ready_(false),
       gyro_ready_(false),
       ready_(false) {
-  this->quat_.q0 = 1.0f;
+  this->quat_.q0 = -1.0f;
   this->quat_.q1 = 0.0f;
   this->quat_.q2 = 0.0f;
   this->quat_.q3 = 0.0f;
 
   auto ahrs_thread = [](AHRS *ahrs) {
-    Message::Subscriber accl_sub("imu_accl", ahrs->accl_);
-    Message::Subscriber gyro_sub("imu_gyro", ahrs->gyro_);
+    Message::Subscriber<Component::Type::Vector3> accl_sub("imu_accl");
+    Message::Subscriber<Component::Type::Vector3> gyro_sub("imu_gyro");
 
     auto accl_cb = [](Component::Type::Vector3 &accl, AHRS *ahrs) {
       static_cast<void>(accl);
 
-      ahrs->ready_.Give();
+      ahrs->ready_.Post();
 
-      ahrs->accl_ready_.Give();
+      ahrs->accl_ready_.Post();
 
       return true;
     };
@@ -39,9 +39,9 @@ AHRS::AHRS()
     auto gyro_cb = [](Component::Type::Vector3 &gyro, AHRS *ahrs) {
       static_cast<void>(gyro);
 
-      ahrs->ready_.Give();
+      ahrs->ready_.Post();
 
-      ahrs->gyro_ready_.Give();
+      ahrs->gyro_ready_.Post();
 
       return true;
     };
@@ -54,14 +54,16 @@ AHRS::AHRS()
          Message::Topic<Component::Type::Vector3>::Find("imu_gyro")))
         .RegisterCallback(gyro_cb, ahrs);
 
-    while (1) {
-      ahrs->ready_.Take(UINT32_MAX);
+    System::Thread::Sleep(10);
 
-      if (ahrs->accl_ready_.Take(0)) {
-        accl_sub.DumpData();
+    while (1) {
+      ahrs->ready_.Wait(UINT32_MAX);
+
+      if (ahrs->accl_ready_.Wait(0)) {
+        accl_sub.DumpData(ahrs->accl_);
       }
-      if (ahrs->gyro_ready_.Take(0)) {
-        gyro_sub.DumpData();
+      if (ahrs->gyro_ready_.Wait(0)) {
+        gyro_sub.DumpData(ahrs->gyro_);
       }
 
       ahrs->Update();
@@ -117,9 +119,8 @@ static float q_2q0, q_2q1, q_2q2, q_2q3, q_4q0, q_4q1, q_4q2, q_8q1, q_8q2,
 
 void AHRS::Update() {
   this->now_ = bsp_time_get();
-
-  this->dt_ = this->now_ - this->last_update_;
-  this->last_update_ = this->now_;
+  this->dt_ = TIME_DIFF(this->last_wakeup_, this->now_);
+  this->last_wakeup_ = this->now_;
 
   float ax = this->accl_.x;
   float ay = this->accl_.y;

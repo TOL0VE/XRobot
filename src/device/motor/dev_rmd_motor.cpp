@@ -10,11 +10,10 @@
 
 using namespace Device;
 
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 uint8_t RMDMotor::motor_tx_buff_[BSP_CAN_NUM][8];
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+
 uint8_t RMDMotor::motor_tx_flag_[BSP_CAN_NUM];
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+
 uint8_t RMDMotor::motor_tx_map_[BSP_CAN_NUM];
 
 RMDMotor::RMDMotor(const Param &param, const char *name)
@@ -24,9 +23,9 @@ RMDMotor::RMDMotor(const Param &param, const char *name)
   memset(&(this->feedback_), 0, sizeof(this->feedback_));
 
   auto rx_callback = [](Can::Pack &rx, RMDMotor *motor) {
-    motor->recv_.OverwriteFromISR(rx);
+    motor->recv_.Overwrite(rx);
 
-    motor->last_online_time_ = bsp_time_get();
+    motor->last_online_time_ = bsp_time_get_ms();
 
     return true;
   };
@@ -37,13 +36,18 @@ RMDMotor::RMDMotor(const Param &param, const char *name)
 
   Can::Subscribe(motor_tp, this->param_.can, this->param_.num + 0x141, 1);
 
+  if ((motor_tx_map_[this->param_.can] & (1 << (this->param_.num))) != 0) {
+    /* Error: ID duplicate */
+    XB_ASSERT(false);
+  }
+
   motor_tx_map_[this->param_.can] |= 1 << (this->param_.num);
 }
 
 bool RMDMotor::Update() {
   Can::Pack pack;
 
-  while (this->recv_.Receive(pack, 0)) {
+  while (this->recv_.Receive(pack)) {
     this->Decode(pack);
   }
 
@@ -66,6 +70,7 @@ void RMDMotor::Decode(Can::Pack &rx) {
 void RMDMotor::Control(float out) {
   if (this->feedback_.temp > 75.0f) {
     out = 0.0f;
+    OMLOG_WARNING("motor %s high temperature detected", name_);
   }
 
   clampf(&out, -1.0f, 1.0f);

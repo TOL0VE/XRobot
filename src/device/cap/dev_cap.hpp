@@ -3,7 +3,6 @@
 #include <device.hpp>
 
 #include "bsp_can.h"
-#include "comp_type.hpp"
 #include "comp_ui.hpp"
 #include "dev_can.hpp"
 #include "dev_referee.hpp"
@@ -52,7 +51,7 @@ class Cap {
  private:
   Param param_;
 
-  float last_online_time_ = 0.0f;
+  uint32_t last_online_time_ = 0;
 
   System::Queue<Can::Pack> control_feedback_ = System::Queue<Can::Pack>(1);
 
@@ -60,12 +59,12 @@ class Cap {
 
   Message::Topic<Cap::Info> info_tp_;
 
-  Cap::Info info_;
+  Cap::Info info_{};
 
-  Cap::Output out_;
+  Cap::Output out_{};
 
-  Component::UI::String string_;
+  Component::UI::String string_{};
 
-  Component::UI::Arc arc_;
+  Component::UI::Arc arc_{};
 };
 }  // namespace Device

@@ -15,14 +15,13 @@
 
 using namespace Device;
 
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 static const uint8_t RELAX_CMD[8] = {0X7F, 0XFF, 0X7F, 0XF0,
                                      0X00, 0X00, 0X07, 0XFF};
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+
 static const uint8_t ENABLE_CMD[8] = {0XFF, 0XFF, 0XFF, 0XFF,
                                       0XFF, 0XFF, 0XFF, 0XFC};
 /*
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+
 static const uint8_t RESET_CMD[8] = {0XFF, 0XFF, 0XFF, 0XFF,
                                      0XFF, 0XFF, 0XFF, 0XFD};
 */
@@ -35,7 +34,7 @@ MitMotor::MitMotor(const Param &param, const char *name)
     : BaseMotor(name, param.reverse), param_(param) {
   auto rx_callback = [](Can::Pack &rx, MitMotor *motor) {
     if (rx.data[0] == motor->param_.id) {
-      motor->recv_.OverwriteFromISR(rx);
+      motor->recv_.Overwrite(rx);
     }
 
     return true;
@@ -65,9 +64,9 @@ MitMotor::MitMotor(const Param &param, const char *name)
 bool MitMotor::Update() {
   Can::Pack pack;
 
-  while (this->recv_.Receive(pack, 0)) {
+  while (this->recv_.Receive(pack)) {
     this->Decode(pack);
-    last_online_time_ = bsp_time_get();
+    last_online_time_ = bsp_time_get_ms();
   }
 
   return true;
@@ -96,12 +95,13 @@ void MitMotor::Decode(Can::Pack &rx) {
 /* MIT电机协议只提供pd位置控制 */
 void MitMotor::Control(float output) {
   static_cast<void>(output);
-  ASSERT(false);
+  XB_ASSERT(false);
 }
 
 void MitMotor::SetCurrent(float current) {
   if (this->feedback_.temp > 75.0f) {
     Relax();
+    OMLOG_WARNING("motor %s high temperature detected", name_);
     return;
   }
 
@@ -115,6 +115,7 @@ void MitMotor::SetCurrent(float current) {
 void MitMotor::SetPos(float pos) {
   if (this->feedback_.temp > 75.0f) {
     Relax();
+    OMLOG_WARNING("motor %s high temperature detected", name_);
     return;
   }
 

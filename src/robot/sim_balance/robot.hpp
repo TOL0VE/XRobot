@@ -1,4 +1,3 @@
-#include "comp_utils.hpp"
 #include "dev_blink_led.hpp"
 #include "dev_camera.hpp"
 #include "dev_controller.hpp"
@@ -10,9 +9,9 @@ void robot_init();
 namespace Robot {
 class Simulator {
  public:
-  typedef struct {
-    Device::BlinkLED::Param led;
-    Device::IMU::Param imu;
+  typedef struct Param {
+    Device::BlinkLED::Param led{};
+    Device::IMU::Param imu{};
     Module::RMDBalance::Param chassis;
   } Param;
 

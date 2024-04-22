@@ -1,7 +1,5 @@
 #include "dev_can.hpp"
 
-#include <array>
-
 #include "bsp_can.h"
 
 using namespace Device;
@@ -20,13 +18,13 @@ Can::Can() {
   }
 
   auto rx_callback = [](bsp_can_t can, uint32_t id, uint8_t* data, void* arg) {
-    (void)(arg);
+    XB_UNUSED(arg);
 
     pack[can].index = id;
 
     memcpy(pack[can].data, data, sizeof(pack[can].data));
 
-    can_tp_[can]->PublishFromISR(pack[can]);
+    can_tp_[can]->Publish(pack[can]);
   };
 
   for (int i = 0; i < BSP_CAN_NUM; i++) {
@@ -37,25 +35,32 @@ Can::Can() {
   bsp_can_init();
 }
 
+bool Can::SendPack(bsp_can_t can, bsp_can_format_t format, Pack& pack) {
+  can_sem_[can]->Wait(UINT32_MAX);
+  bool ans = bsp_can_trans_packet(can, format, pack.index, pack.data) == BSP_OK;
+  can_sem_[can]->Post();
+  return ans;
+}
+
 bool Can::SendStdPack(bsp_can_t can, Pack& pack) {
-  can_sem_[can]->Take(UINT32_MAX);
+  can_sem_[can]->Wait(UINT32_MAX);
   bool ans = bsp_can_trans_packet(can, CAN_FORMAT_STD, pack.index, pack.data) ==
              BSP_OK;
-  can_sem_[can]->Give();
+  can_sem_[can]->Post();
   return ans;
 }
 
 bool Can::SendExtPack(bsp_can_t can, Pack& pack) {
-  can_sem_[can]->Take(UINT32_MAX);
+  can_sem_[can]->Wait(UINT32_MAX);
   bool ans = bsp_can_trans_packet(can, CAN_FORMAT_EXT, pack.index, pack.data) ==
              BSP_OK;
-  can_sem_[can]->Give();
+  can_sem_[can]->Post();
   return ans;
 }
 
 bool Can::Subscribe(Message::Topic<Can::Pack>& tp, bsp_can_t can,
                     uint32_t index, uint32_t num) {
-  ASSERT(num > 0);
+  XB_ASSERT(num > 0);
 
   can_tp_[can]->RangeDivide(tp, sizeof(Pack), offsetof(Pack, index),
                             om_member_size_of(Pack, index), index, num);

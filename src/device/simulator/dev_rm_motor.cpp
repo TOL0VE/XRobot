@@ -26,7 +26,7 @@ void RMMotor::Control(float output) {
       output *= T_6020;
       break;
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
       return;
   }
 
@@ -34,7 +34,7 @@ void RMMotor::Control(float output) {
 }
 
 bool RMMotor::Update() {
-  if (bsp_time_get() == this->last_sensor_time_) {
+  if (bsp_time_get_ms() == this->last_sensor_time_) {
     return false;
   }
 
@@ -42,20 +42,19 @@ bool RMMotor::Update() {
       static_cast<float>(wb_position_sensor_get_value(this->sensor_));
 
   this->feedback_.rotational_speed =
-      raw_pos - this->last_pos_ / (bsp_time_get() - this->last_sensor_time_) /
-                    M_2PI * 60.0f * 19.0f;
+      (raw_pos - this->last_pos_) /
+      (bsp_time_get_ms() - this->last_sensor_time_) * 1000.0f / M_2PI * 60.0f *
+      19.0f;
 
   this->last_pos_ = raw_pos;
-
-  raw_pos = raw_pos * 19.0f;
 
   this->feedback_.rotor_abs_angle = raw_pos;
 
   this->feedback_.temp = 28.0f;
 
-  this->last_online_time_ = bsp_time_get();
+  this->last_online_time_ = bsp_time_get_ms();
 
-  this->last_sensor_time_ = bsp_time_get();
+  this->last_sensor_time_ = bsp_time_get_ms();
 
   this->feedback_.torque_current =
       static_cast<float>(wb_motor_get_torque_feedback(this->handle_));

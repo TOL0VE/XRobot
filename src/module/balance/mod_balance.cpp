@@ -2,7 +2,6 @@
 
 #include "bsp_time.h"
 #include "dev_referee.hpp"
-#include "om.hpp"
 
 #define ROTOR_WZ_MIN 0.6f /* 小陀螺旋转位移下界 */
 #define ROTOR_WZ_MAX 0.8f /* 小陀螺旋转位移上界 */
@@ -42,7 +41,7 @@ Balance<Motor, MotorParam>::Balance(Param& param, float control_freq)
   }
 
   auto event_callback = [](ChassisEvent event, Balance* chassis) {
-    chassis->ctrl_lock_.Take(UINT32_MAX);
+    chassis->ctrl_lock_.Wait(UINT32_MAX);
 
     switch (event) {
       case SET_MODE_RELAX:
@@ -61,41 +60,46 @@ Balance<Motor, MotorParam>::Balance(Param& param, float control_freq)
         break;
     }
 
-    chassis->ctrl_lock_.Give();
+    chassis->ctrl_lock_.Post();
   };
 
   Component::CMD::RegisterEvent<Balance*, ChassisEvent>(event_callback, this,
                                                         this->param_.EVENT_MAP);
 
   auto chassis_thread = [](Balance* chassis) {
-    auto raw_ref_sub = Message::Subscriber("referee", chassis->raw_ref_);
-    auto cmd_sub = Message::Subscriber("cmd_chassis", chassis->cmd_);
-    auto eulr_sub = Message::Subscriber("chassis_eulr", chassis->eulr_);
-    auto gyro_sub = Message::Subscriber("chassis_gyro", chassis->gyro_);
-    auto yaw_sub = Message::Subscriber("chassis_yaw", chassis->yaw_);
-    auto leg_sub = Message::Subscriber("leg_whell_polor", chassis->leg_);
-    auto cap_sub = Message::Subscriber("cap_info", chassis->cap_);
+    auto raw_ref_sub = Message::Subscriber<Device::Referee::Data>("referee");
+    auto cmd_sub =
+        Message::Subscriber<Component::CMD::ChassisCMD>("cmd_chassis");
+    auto eulr_sub = Message::Subscriber<Component::Type::Eulr>("chassis_eulr");
+    auto gyro_sub =
+        Message::Subscriber<Component::Type::Vector3>("chassis_gyro");
+    auto yaw_sub = Message::Subscriber<float>("chassis_yaw");
+    auto leg_sub =
+        Message::Subscriber<Component::Type::Polar2>("leg_whell_polor");
+    auto cap_sub = Message::Subscriber<Device::Cap::Info>("cap_info");
+
+    uint32_t last_online_time = bsp_time_get_ms();
 
     while (1) {
       /* 读取控制指令、电容、裁判系统、电机反馈 */
-      cmd_sub.DumpData();
-      raw_ref_sub.DumpData();
-      eulr_sub.DumpData();
-      gyro_sub.DumpData();
-      yaw_sub.DumpData();
-      leg_sub.DumpData();
-      cap_sub.DumpData();
+      cmd_sub.DumpData(chassis->cmd_);
+      raw_ref_sub.DumpData(chassis->raw_ref_);
+      eulr_sub.DumpData(chassis->eulr_);
+      gyro_sub.DumpData(chassis->gyro_);
+      yaw_sub.DumpData(chassis->yaw_);
+      leg_sub.DumpData(chassis->leg_);
+      cap_sub.DumpData(chassis->cap_);
 
       /* 更新反馈值 */
       chassis->PraseRef();
-      chassis->ctrl_lock_.Take(UINT32_MAX);
+      chassis->ctrl_lock_.Wait(UINT32_MAX);
       chassis->UpdateFeedback();
       chassis->UpdateStatus();
       chassis->Control();
-      chassis->ctrl_lock_.Give();
+      chassis->ctrl_lock_.Post();
 
       /* 运行结束，等待下一次唤醒 */
-      chassis->thread_.SleepUntil(2);
+      chassis->thread_.SleepUntil(2, last_online_time);
     }
   };
 
@@ -163,8 +167,8 @@ void Balance<Motor, MotorParam>::UpdateStatus() {
 
 template <typename Motor, typename MotorParam>
 bool Balance<Motor, MotorParam>::SlipDetect() {
-  if (bsp_time_get() - last_detect_time_ > 0.2) {
-    last_detect_time_ = bsp_time_get();
+  if (bsp_time_get_ms() - last_detect_time_ > 0.2) {
+    last_detect_time_ = bsp_time_get_ms();
     slip_counter_ = 0.0f;
     if (fabsf(gyro_.x) > 0.6f) {
       if (last_detect_dir_ * gyro_.x < 0) {
@@ -196,7 +200,8 @@ template <typename Motor, typename MotorParam>
 void Balance<Motor, MotorParam>::Control() {
   this->now_ = bsp_time_get();
 
-  this->dt_ = this->now_ - this->last_wakeup_;
+  this->dt_ = TIME_DIFF(this->last_wakeup_, this->now_);
+
   this->last_wakeup_ = this->now_;
 
   /* ctrl_vec -> move_vec 控制向量和真实的移动向量之间有一个换算关系 */
@@ -417,7 +422,7 @@ void Balance<Motor, MotorParam>::Control() {
       }
       break;
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
       return;
   }
 }

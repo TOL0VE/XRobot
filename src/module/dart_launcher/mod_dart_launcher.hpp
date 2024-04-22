@@ -1,7 +1,6 @@
-#include <comp_actuator.hpp>
-#include <thread.hpp>
 #include <vector>
 
+#include "comp_actuator.hpp"
 #include "comp_cmd.hpp"
 #include "dev_mech.hpp"
 #include "dev_rm_motor.hpp"
@@ -45,13 +44,13 @@ class DartLauncher {
 
   Setpoint setpoint_;
 
-  float dt_;
+  float dt_ = 0.0f;
 
-  float last_wakeup_;
+  uint64_t last_wakeup_ = 0;
 
-  float now_;
+  uint64_t now_ = 0;
 
-  float last_reload_time_;
+  uint32_t last_reload_time_ = 0;
 
   Device::AutoCaliLimitedMech<Device::RMMotor, Device::RMMotor::Param, 1>
       rod_actr_;

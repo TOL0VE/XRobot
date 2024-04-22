@@ -1,7 +1,3 @@
-/*
- * 云台模组
- */
-
 #include "mod_gimbal.hpp"
 
 #include <comp_cmd.hpp>
@@ -23,48 +19,54 @@ Gimbal::Gimbal(Param& param, float control_freq)
       pit_motor_(this->param_.pit_motor, "Gimbal_Pitch"),
       ctrl_lock_(true) {
   auto event_callback = [](GimbalEvent event, Gimbal* gimbal) {
-    gimbal->ctrl_lock_.Take(UINT32_MAX);
+    gimbal->ctrl_lock_.Wait(UINT32_MAX);
 
     switch (event) {
       case SET_MODE_RELAX:
       case SET_MODE_ABSOLUTE:
         gimbal->SetMode(static_cast<Mode>(event));
         break;
+
       case START_AUTO_AIM:
         Component::CMD::SetCtrlSource(Component::CMD::CTRL_SOURCE_AI);
         break;
       case STOP_AUTO_AIM:
         Component::CMD::SetCtrlSource(Component::CMD::CTRL_SOURCE_RC);
         break;
+      case SET_AUTOPATROL:
+        gimbal->SetMode(static_cast<Mode>(AUTOPATROL));
+        break;
     }
-    gimbal->ctrl_lock_.Give();
+    gimbal->ctrl_lock_.Post();
   };
 
   Component::CMD::RegisterEvent<Gimbal*, GimbalEvent>(event_callback, this,
                                                       this->param_.EVENT_MAP);
 
   auto gimbal_thread = [](Gimbal* gimbal) {
-    auto eulr_sub = Message::Subscriber("imu_eulr", gimbal->eulr_);
+    auto eulr_sub = Message::Subscriber<Component::Type::Eulr>("imu_eulr");
 
-    auto gyro_sub = Message::Subscriber("imu_gyro", gimbal->gyro_);
+    auto gyro_sub = Message::Subscriber<Component::Type::Vector3>("imu_gyro");
 
-    auto cmd_sub = Message::Subscriber("cmd_gimbal", gimbal->cmd_);
+    auto cmd_sub = Message::Subscriber<Component::CMD::GimbalCMD>("cmd_gimbal");
+
+    uint32_t last_online_time = bsp_time_get_ms();
 
     while (1) {
       /* 读取控制指令、姿态、IMU、电机反馈 */
-      eulr_sub.DumpData();
-      gyro_sub.DumpData();
-      cmd_sub.DumpData();
+      eulr_sub.DumpData(gimbal->eulr_); /* imu */
+      gyro_sub.DumpData(gimbal->gyro_); /* imu */
+      cmd_sub.DumpData(gimbal->cmd_);   /* cmd */
 
-      gimbal->ctrl_lock_.Take(UINT32_MAX);
+      gimbal->ctrl_lock_.Wait(UINT32_MAX);
       gimbal->UpdateFeedback();
       gimbal->Control();
-      gimbal->ctrl_lock_.Give();
+      gimbal->ctrl_lock_.Post();
 
       gimbal->yaw_tp_.Publish(gimbal->yaw_);
 
       /* 运行结束，等待下一次唤醒 */
-      gimbal->thread_.SleepUntil(2);
+      gimbal->thread_.SleepUntil(2, last_online_time);
     }
   };
 
@@ -79,13 +81,27 @@ Gimbal::Gimbal(Param& param, float control_freq)
 void Gimbal::UpdateFeedback() {
   this->pit_motor_.Update();
   this->yaw_motor_.Update();
+  switch (this->mode_) {
+    case RELAX:
+    case ABSOLUTE:
+      this->yaw_ = this->yaw_motor_.GetAngle() - this->param_.mech_zero.yaw;
+      break;
+    case AUTOPATROL:
+      this->yaw_ = this->yaw_motor_.GetAngle() - this->param_.mech_zero.yaw -
+                   this->param_.patrol_range *
+                       sinf(this->param_.patrol_omega *
+                            static_cast<float>(bsp_time_get_ms() -
+                                               autopatrol_start_time_) /
+                            1000.0f);
 
-  this->yaw_ = this->yaw_motor_.GetAngle() - this->param_.mech_zero.yaw;
+      break;
+  }
 }
 
 void Gimbal::Control() {
   this->now_ = bsp_time_get();
-  this->dt_ = this->now_ - this->last_wakeup_;
+  this->dt_ = TIME_DIFF(this->last_wakeup_, this->now_);
+
   this->last_wakeup_ = this->now_;
 
   float gimbal_pit_cmd = 0.0f;
@@ -103,21 +119,37 @@ void Gimbal::Control() {
                      this->setpoint_.eulr_.pit;
   }
 
-  /* 处理yaw控制命令 */
+  /* 处理yaw控制命令，软件限位  */
+  /* 某个轴max=min时不进行限位,配置文件默认不写 */
+  if (param_.limit.yaw_max != param_.limit.yaw_min) {
+    const float ENCODER_DELTA_MAX_YAW =
+        this->param_.limit.yaw_max - this->yaw_motor_.GetAngle();
+    const float ENCODER_DELTA_MIN_YAW =
+        this->param_.limit.yaw_min - this->yaw_motor_.GetAngle();
+    const float YAW_ERR = this->setpoint_.eulr_.yaw - eulr_.yaw;
+    const float DELTA_MAX_YAW = ENCODER_DELTA_MAX_YAW - YAW_ERR;
+    const float DELTA_MIN_YAW = ENCODER_DELTA_MIN_YAW - YAW_ERR;
+    clampf(&(gimbal_yaw_cmd), DELTA_MIN_YAW, DELTA_MAX_YAW);
+  }
   this->setpoint_.eulr_.yaw += gimbal_yaw_cmd;
 
   /* 处理pitch控制命令，软件限位 */
-  const float ENCODER_DELTA_MAX =
-      this->param_.limit.pitch_max - this->pit_motor_.GetAngle();
-  const float ENCODER_DELTA_MIN =
-      this->param_.limit.pitch_min - this->pit_motor_.GetAngle();
-  const float PIT_ERR = this->setpoint_.eulr_.pit - eulr_.pit;
-  const float DELTA_MAX = ENCODER_DELTA_MAX - PIT_ERR;
-  const float DELTA_MIN = ENCODER_DELTA_MIN - PIT_ERR;
-  clampf(&(gimbal_pit_cmd), DELTA_MIN, DELTA_MAX);
+  if (param_.limit.pitch_max != param_.limit.pitch_min) {
+    const float ENCODER_DELTA_MAX_PIT =
+        this->param_.limit.pitch_max - this->pit_motor_.GetAngle();
+    const float ENCODER_DELTA_MIN_PIT =
+        this->param_.limit.pitch_min - this->pit_motor_.GetAngle();
+    const float PIT_ERR = this->setpoint_.eulr_.pit - eulr_.pit;
+    const float DELTA_MAX_PIT = ENCODER_DELTA_MAX_PIT - PIT_ERR;
+    const float DELTA_MIN_PIT = ENCODER_DELTA_MIN_PIT - PIT_ERR;
+    clampf(&(gimbal_pit_cmd), DELTA_MIN_PIT, DELTA_MAX_PIT);
+  }
   this->setpoint_.eulr_.pit += gimbal_pit_cmd;
 
   /* 控制相关逻辑 */
+  float yaw_out = 0;
+  float pit_out = 0;
+  float autopatrol_yaw = 0;
   switch (this->mode_) {
     case RELAX:
       this->yaw_motor_.Relax();
@@ -125,15 +157,33 @@ void Gimbal::Control() {
       break;
     case ABSOLUTE:
       /* Yaw轴角速度环参数计算 */
-      float yaw_out = this->yaw_actuator_.Calculate(
+      yaw_out = this->yaw_actuator_.Calculate(
           this->setpoint_.eulr_.yaw, this->gyro_.z, this->eulr_.yaw, this->dt_);
 
-      float pit_out = this->pit_actuator_.Calculate(
+      pit_out = this->pit_actuator_.Calculate(
           this->setpoint_.eulr_.pit, this->gyro_.x, this->eulr_.pit, this->dt_);
 
       this->yaw_motor_.Control(yaw_out);
       this->pit_motor_.Control(pit_out);
 
+      break;
+
+    case AUTOPATROL:
+      /* 以sin变化左右摆头 */
+      autopatrol_yaw = this->setpoint_.eulr_.yaw +
+                       this->param_.patrol_range *
+                           sinf(this->param_.patrol_omega *
+                                static_cast<float>(bsp_time_get_ms() -
+                                                   autopatrol_start_time_) /
+                                1000.0f);
+
+      yaw_out = this->yaw_actuator_.Calculate(autopatrol_yaw, this->gyro_.z,
+                                              this->eulr_.yaw, this->dt_);
+      pit_out = this->pit_actuator_.Calculate(
+          this->param_.patrol_hight, this->gyro_.x, this->eulr_.pit, this->dt_);
+
+      this->yaw_motor_.Control(yaw_out);
+      this->pit_motor_.Control(pit_out);
       break;
   }
 }
@@ -155,14 +205,8 @@ void Gimbal::SetMode(Mode mode) {
     }
   }
 
-  this->mode_ = mode;
-
-  memcpy(&(this->setpoint_.eulr_), &(this->eulr_),
-         sizeof(this->setpoint_.eulr_)); /* 切换模式后重置设定值 */
-  if (this->mode_ == RELAX) {
-    if (mode == ABSOLUTE) {
-      this->setpoint_.eulr_.yaw = this->eulr_.yaw;
-    }
+  if (mode == AUTOPATROL) {
+    autopatrol_start_time_ = bsp_time_get_ms();
   }
 
   this->mode_ = mode;

@@ -5,11 +5,12 @@
 namespace Device {
 class BaseMotor {
  public:
-  typedef struct {
-    Component::Type::CycleValue rotor_abs_angle; /* 转子绝对角度 单位：rad */
-    float rotational_speed;                      /* 转速 单位：rpm */
-    float torque_current;                        /* 转矩电流 单位：A*/
-    float temp;                                  /* 电机温度 单位：℃*/
+  typedef struct Feedback {
+    Component::Type::CycleValue rotor_abs_angle =
+        0.0f;                      /* 转子绝对角度 单位：rad */
+    float rotational_speed = 0.0f; /* 转速 单位：rpm */
+    float torque_current = 0.0f;   /* 转矩电流 单位：A*/
+    float temp = 0.0f;             /* 电机温度 单位：℃*/
   } Feedback;
 
   BaseMotor(const char *name, bool reverse)
@@ -67,7 +68,8 @@ class BaseMotor {
         }
         while (time > delay) {
           printf("电机 [%s] 反馈数据:\r\n", motor->name_);
-          printf("最近一次反馈时间:%fs.\r\n", motor->last_online_time_);
+          printf("最近一次反馈时间:%fs.\r\n",
+                 static_cast<float>(motor->last_online_time_) / 1000.0f);
           printf("角度:%frad 速度:%frpm 电流:%fA 温度:%f℃\r\n",
                  motor->GetAngle().Value(), motor->GetSpeed(),
                  motor->GetCurrent(), motor->feedback_.temp);
@@ -81,11 +83,11 @@ class BaseMotor {
     return 0;
   }
 
-  char name_[25];  // NOLINT(modernize-avoid-c-arrays)
+  char name_[25]{};
 
   Feedback feedback_;
 
-  float last_online_time_ = 0.0f;
+  uint32_t last_online_time_ = 0;
 
   bool reverse_; /* 电机反装 */
 

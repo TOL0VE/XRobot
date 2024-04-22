@@ -1,7 +1,6 @@
 #pragma once
 
 #include <device.hpp>
-#include <semaphore.hpp>
 
 #include "bsp_can.h"
 
@@ -10,10 +9,12 @@ class Can {
  public:
   typedef struct {
     uint32_t index;
-    uint8_t data[8];  // NOLINT(modernize-avoid-c-arrays)
+    uint8_t data[8];
   } Pack;
 
   Can();
+
+  static bool SendPack(bsp_can_t can, bsp_can_format_t format, Pack& pack);
 
   static bool SendStdPack(bsp_can_t can, Pack& pack);
 

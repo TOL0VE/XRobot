@@ -1,9 +1,5 @@
 #include "can_usart.hpp"
 
-#include <cstdint>
-#include <cstring>
-#include <timer.hpp>
-
 #include "bsp_can.h"
 #include "bsp_uart.h"
 
@@ -56,7 +52,7 @@ CantoUsart::CantoUsart()
   auto tx_cplt_cb = [](void *arg) {
     CantoUsart *can_uart = static_cast<CantoUsart *>(arg);
 
-    can_uart->tx_cplt_.GiveFromISR();
+    can_uart->tx_cplt_.Post();
   };
 
   bsp_uart_register_callback(BSP_UART_MCU, BSP_UART_TX_CPLT_CB, tx_cplt_cb,
@@ -68,7 +64,7 @@ CantoUsart::CantoUsart()
     can_uart->uart_trans_buff_.type = CAN_FORMAT_STD;
     memcpy(&can_uart->uart_trans_buff_.data, rx.data, sizeof(rx.data));
     can_uart->uart_trans_buff_.end_frame = END;
-    can_uart->tx_ready_.GiveFromISR();
+    can_uart->tx_ready_.Post();
     return true;
   };
 
@@ -79,8 +75,8 @@ CantoUsart::CantoUsart()
 
   auto uart_send_fn = [](CantoUsart *can_uart) {
     while (1) {
-      can_uart->tx_ready_.Take(UINT32_MAX);
-      can_uart->tx_cplt_.Take(UINT32_MAX);
+      can_uart->tx_ready_.Wait(UINT32_MAX);
+      can_uart->tx_cplt_.Wait(UINT32_MAX);
       bsp_uart_transmit(
           BSP_UART_MCU,
           reinterpret_cast<uint8_t *>(&can_uart->uart_trans_buff_),

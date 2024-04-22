@@ -1,12 +1,8 @@
 #include "mod_ore_collect.hpp"
 
-#include <comp_type.hpp>
-
 #include "bsp_gpio.h"
 #include "bsp_time.h"
 #include "comp_cmd.hpp"
-#include "ms.h"
-#include "om.hpp"
 
 using namespace Module;
 
@@ -63,16 +59,19 @@ OreCollect::OreCollect(Param& param, float control_freq)
       event_callback, this, this->param_.EVENT_MAP);
 
   auto ore_thread = [](OreCollect* ore) {
-    auto eulr_sub = Message::Subscriber<Component::Type::Eulr>(
-        "custom_ctrl_eulr", ore->eulr_);
+    auto eulr_sub =
+        Message::Subscriber<Component::Type::Eulr>("custom_ctrl_eulr");
+
+    uint32_t last_online_time = bsp_time_get_ms();
+
     while (1) {
       /* 更新反馈值 */
-      eulr_sub.DumpData();
+      eulr_sub.DumpData(ore->eulr_);
       ore->UpdateFeedback();
       ore->Control();
 
       /* 运行结束，等待下一次唤醒 */
-      ore->thread_.SleepUntil(2);
+      ore->thread_.SleepUntil(2, last_online_time);
     }
   };
 
@@ -83,7 +82,8 @@ OreCollect::OreCollect(Param& param, float control_freq)
 void OreCollect::Control() {
   this->now_ = bsp_time_get();
 
-  this->dt_ = this->now_ - this->last_wakeup_;
+  this->dt_ = TIME_DIFF(this->last_wakeup_, this->now_);
+
   this->last_wakeup_ = this->now_;
 
   switch (mode_) {

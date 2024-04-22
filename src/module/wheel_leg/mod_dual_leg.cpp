@@ -34,7 +34,7 @@ WheelLeg::WheelLeg(WheelLeg::Param &param, float sample_freq)
   }
 
   auto event_callback = [](ChassisEvent event, WheelLeg *leg) {
-    leg->ctrl_lock_.Take(UINT32_MAX);
+    leg->ctrl_lock_.Wait(UINT32_MAX);
 
     switch (event) {
       case SET_MODE_RELAX:
@@ -53,19 +53,23 @@ WheelLeg::WheelLeg(WheelLeg::Param &param, float sample_freq)
         break;
     }
 
-    leg->ctrl_lock_.Give();
+    leg->ctrl_lock_.Post();
   };
 
   Component::CMD::RegisterEvent<WheelLeg *, ChassisEvent>(
       event_callback, this, this->param_.EVENT_MAP);
 
   auto leg_thread = [](WheelLeg *leg) {
-    auto eulr_sub = Message::Subscriber("chassis_eulr", leg->eulr_);
+    auto eulr_sub = Message::Subscriber<Component::Type::Eulr>("chassis_eulr");
 
-    auto gyro_sub = Message::Subscriber("chassis_gyro", leg->gyro_);
+    auto gyro_sub =
+        Message::Subscriber<Component::Type::Vector3>("chassis_gyro");
+
+    uint32_t last_online_time = bsp_time_get_ms();
 
     while (1) {
-      eulr_sub.DumpData();
+      eulr_sub.DumpData(leg->eulr_);
+      gyro_sub.DumpData(leg->gyro_);
 
       leg->UpdateFeedback();
 
@@ -73,7 +77,7 @@ WheelLeg::WheelLeg(WheelLeg::Param &param, float sample_freq)
 
       leg->wheel_polor_.Publish(leg->feedback_[0].whell_polar);
 
-      leg->thread_.SleepUntil(5);
+      leg->thread_.SleepUntil(5, last_online_time);
     }
   };
 
@@ -129,7 +133,8 @@ void WheelLeg::UpdateFeedback() {
 void WheelLeg::Control() {
   this->now_ = bsp_time_get();
 
-  this->dt_ = this->now_ - this->last_wakeup_;
+  this->dt_ = TIME_DIFF(this->last_wakeup_, this->now_);
+
   this->last_wakeup_ = this->now_;
 
   /* 处理控制命令 */
@@ -165,7 +170,7 @@ void WheelLeg::Control() {
       break;
     }
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
       return;
   }
 
@@ -226,7 +231,7 @@ void WheelLeg::Control() {
       }
       break;
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
       return;
   }
 }

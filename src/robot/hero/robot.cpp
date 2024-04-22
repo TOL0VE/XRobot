@@ -53,7 +53,7 @@ Robot::Hero::Param param = {
       .actuator_param = {
         Component::SpeedActuator::Param{
           .speed = {
-            .k = 0.00015f,
+            .k = 0.0001f,
             .p = 1.0f,
             .i = 0.0f,
             .d = 0.0f,
@@ -70,7 +70,7 @@ Robot::Hero::Param param = {
         },
         Component::SpeedActuator::Param{
           .speed = {
-            .k = 0.00018f,
+            .k = 0.0001f,
             .p = 1.0f,
             .i = 0.0f,
             .d = 0.0f,
@@ -86,7 +86,7 @@ Robot::Hero::Param param = {
         },
         Component::SpeedActuator::Param{
           .speed = {
-            .k = 0.00015f,
+            .k = 0.0001f,
             .p = 1.0f,
             .i = 0.0f,
             .d = 0.0f,
@@ -102,7 +102,7 @@ Robot::Hero::Param param = {
         },
         Component::SpeedActuator::Param{
           .speed = {
-            .k = 0.00015f,
+            .k = 0.0001f,
             .p = 1.0f,
             .i = 0.0f,
             .d = 0.0f,
@@ -169,19 +169,19 @@ Robot::Hero::Param param = {
     .yaw_actr = {
       .speed = {
           /* GIMBAL_CTRL_YAW_OMEGA_IDX */
-          .k = 0.47f,
+          .k = 0.85f,
           .p = 1.0f,
-          .i = 0.2f,
+          .i = 0.3f,
           .d = 0.0f,
-          .i_limit = 0.2f,
-          .out_limit = 0.5f,
+          .i_limit = 0.8f,
+          .out_limit = 1.0f,
           .d_cutoff_freq = -1.0f,
           .cycle = false,
         },
 
         .position = {
           /* GIMBAL_CTRL_YAW_ANGLE_IDX */
-          .k = 19.0f,
+          .k = 20.0f,
           .p = 1.0f,
           .i = 0.0f,
           .d = 0.0f,
@@ -198,12 +198,12 @@ Robot::Hero::Param param = {
     .pit_actr = {
         .speed = {
           /* GIMBAL_CTRL_PIT_OMEGA_IDX */
-          .k = 0.25f,
+          .k = 0.5f,
           .p = 1.0f,
-          .i = 1.0f,
+          .i = 0.6f,
           .d = 0.f,
-          .i_limit = 0.4f,
-          .out_limit = 0.5f,
+          .i_limit = 0.8f,
+          .out_limit = 1.0f,
           .d_cutoff_freq = -1.0f,
           .cycle = false,
         },
@@ -248,8 +248,8 @@ Robot::Hero::Param param = {
     },
 
     .limit = {
-      .pitch_max = 2.55f,
-      .pitch_min = 1.82f,
+      .pitch_max = 2.7f,
+      .pitch_min = 2.0f,
     },
 
     .EVENT_MAP = {
@@ -294,21 +294,21 @@ Robot::Hero::Param param = {
     .trig_actr = {
       Component::PosActuator::Param{
         .speed = {
-          .k = 2.0f,
+          .k = 10.0f,
           .p = 1.0f,
           .i = 0.0f,
           .d = 0.0f,
-          .i_limit = 0.5f,
+          .i_limit = 1.0f,
           .out_limit = 1.0f,
           .d_cutoff_freq = -1.0f,
           .cycle = false,
         },
 
         .position = {
-          .k = 0.7f,
+          .k = 0.8f,
           .p = 1.0f,
           .i = 0.0f,
-          .d = 0.1f,
+          .d = 0.0f,
           .i_limit = 1.0f,
           .out_limit = 1.0f,
           .d_cutoff_freq = -1.0f,
@@ -324,11 +324,11 @@ Robot::Hero::Param param = {
     .fric_actr = {
       Component::SpeedActuator::Param{
         .speed = {
-          .k = 0.0002f,
+          .k = 0.001f,
           .p = 1.0f,
-          .i = 0.0f,
-          .d = 0.01f,
-          .i_limit = 0.5f,
+          .i = 0.2,
+          .d = 0.0f,
+          .i_limit = 0.3f,
           .out_limit = 1.0f,
           .d_cutoff_freq = -1.0f,
           .cycle = false,
@@ -340,11 +340,11 @@ Robot::Hero::Param param = {
       },
       Component::SpeedActuator::Param{
         .speed = {
-          .k = 0.0002f,
+          .k = 0.001f,
           .p = 1.0f,
-          .i = 0.0f,
-          .d = 0.01f,
-          .i_limit = 0.5f,
+          .i = 0.2f,
+          .d = 0.0f,
+          .i_limit = 0.3f,
           .out_limit = 1.0f,
           .d_cutoff_freq = -1.0f,
           .cycle = false,

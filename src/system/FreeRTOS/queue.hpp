@@ -1,144 +1,76 @@
 #pragma once
 
+#include <cstdint>
 #include <mutex.hpp>
 #include <semaphore.hpp>
 #include <thread.hpp>
 
+#include "FreeRTOS.h"
+#include "bsp_sys.h"
 #include "bsp_time.h"
 #include "om.hpp"
+#include "projdefs.h"
+#include "task.h"
 
 namespace System {
 template <typename Data>
 class Queue {
  public:
-  Queue(uint16_t length) {
-    om_fifo_create(&fifo_, malloc(length * sizeof(Data)), length, sizeof(Data));
+  Queue(uint16_t length) : queue_(xQueueCreate(length, sizeof(Data))) {}
+
+  bool Send(const Data& data) {
+    if (bsp_sys_in_isr()) {
+      BaseType_t xHigherPriorityTaskWoken;
+      auto ans = xQueueSendFromISR(queue_, &data, &xHigherPriorityTaskWoken);
+      if (xHigherPriorityTaskWoken) {
+        /* Actual macro used here is port specific. */
+        portYIELD();
+      }
+      return ans == pdTRUE;
+    } else {
+      return xQueueSend(queue_, &data, 0) == pdTRUE;
+    }
   }
 
-  bool Send(const Data& data, uint32_t timeout) {
-    uint32_t start_time = bsp_time_get_ms();
-    if (!mutex_.Lock(timeout)) {
-      return false;
-    }
-
-    if (om_fifo_write(&fifo_, &data) == OM_OK) {
-      mutex_.Unlock();
-      return true;
-    }
-
-    bool ans = false;
-    while (bsp_time_get_ms() - start_time < timeout) {
-      ans = om_fifo_write(&fifo_, &data) == OM_OK;
-      if (ans) {
-        break;
+  bool Receive(Data& data) {
+    if (bsp_sys_in_isr()) {
+      BaseType_t xHigherPriorityTaskWoken;
+      auto ans = xQueueReceiveFromISR(queue_, &data, &xHigherPriorityTaskWoken);
+      if (xHigherPriorityTaskWoken) {
+        portYIELD();
       }
-      System::Thread::Sleep(1);
+      return ans == pdTRUE;
+    } else {
+      return xQueueReceive(queue_, &data, 0) == pdTRUE;
     }
-
-    mutex_.Unlock();
-
-    return ans;
-  }
-
-  bool Receive(Data& data, uint32_t timeout) {
-    uint32_t start_time = bsp_time_get_ms();
-    if (!mutex_.Lock(timeout)) {
-      return false;
-    }
-
-    if (om_fifo_read(&fifo_, &data) == OM_OK) {
-      mutex_.Unlock();
-      return true;
-    }
-
-    bool ans = false;
-    while (bsp_time_get_ms() - start_time < timeout) {
-      ans = om_fifo_read(&fifo_, &data) == OM_OK;
-      if (ans) {
-        break;
-      }
-      mutex_.Unlock();
-      System::Thread::Sleep(1);
-      while (1) {
-        if (mutex_.Lock(1)) {
-          break;
-        } else {
-          if (bsp_time_get_ms() - start_time < timeout) {
-            return false;
-          }
-        }
-      }
-    }
-
-    mutex_.Unlock();
-
-    return ans;
   }
 
   bool Overwrite(const Data& data) {
-    if (!mutex_.Lock(0)) {
-      return false;
+    if (bsp_sys_in_isr()) {
+      BaseType_t xHigherPriorityTaskWoken;
+
+      auto ans =
+          xQueueOverwriteFromISR(queue_, &data, &xHigherPriorityTaskWoken);
+      if (xHigherPriorityTaskWoken) {
+        portYIELD();
+      }
+      return ans == pdTRUE;
+    } else {
+      return xQueueOverwrite(queue_, &data) == pdTRUE;
     }
-
-    bool ans = om_fifo_overwrite(&fifo_, &data) == OM_OK;
-
-    mutex_.Unlock();
-
-    return ans;
   }
 
-  bool SendFromISR(const Data& data) {
-    if (!mutex_.LockFromISR()) {
-      return false;
+  bool Reset() { return xQueueReset(queue_) == pdTRUE; }
+
+  uint32_t Size() {
+    if (bsp_sys_in_isr()) {
+      return uxQueueMessagesWaitingFromISR(queue_);
+    } else {
+      return uxQueueMessagesWaiting(queue_);
     }
-
-    bool ans = om_fifo_write(&fifo_, &data) == OM_OK;
-
-    mutex_.UnlockFromISR();
-
-    return ans;
   }
-
-  bool ReceiveFromISR(Data& data) {
-    if (!mutex_.LockFromISR()) {
-      return false;
-    }
-
-    bool ans = om_fifo_read(&fifo_, &data) == OM_OK;
-
-    mutex_.UnlockFromISR();
-
-    return ans;
-  }
-
-  bool OverwriteFromISR(const Data& data) {
-    if (!mutex_.LockFromISR()) {
-      return false;
-    }
-
-    bool ans = om_fifo_overwrite(&fifo_, &data) == OM_OK;
-
-    mutex_.UnlockFromISR();
-
-    return ans;
-  }
-
-  bool Reset() {
-    if (!mutex_.Lock(0)) {
-      return false;
-    }
-
-    bool ans = om_fifo_reset(&fifo_) == OM_OK;
-
-    mutex_.Unlock();
-
-    return ans;
-  }
-
-  uint32_t Size() { return om_fifo_readable_item_count(&fifo_); }
 
  private:
-  om_fifo_t fifo_;
-  System::Mutex mutex_;
+  QueueHandle_t queue_;
 };
 }  // namespace System

@@ -4,7 +4,6 @@
 
 #include "comp_cmd.hpp"
 #include "comp_ui.hpp"
-#include "comp_utils.hpp"
 
 namespace Device {
 class DR16 {
@@ -110,11 +109,9 @@ class DR16 {
   static DR16::Data data_;
 
  private:
-  Data last_data_;
+  Data last_data_{};
 
   ControlSource ctrl_source_ = DR16_CTRL_SOURCE_SW;
-
-  System::Semaphore new_;
 
   System::Thread thread_;
 
@@ -122,10 +119,10 @@ class DR16 {
 
   Message::Topic<Component::CMD::Data> cmd_tp_;
 
-  Component::CMD::Data cmd_;
+  Component::CMD::Data cmd_{};
 
-  Component::UI::String string_;
+  Component::UI::String string_{};
 
-  Component::UI::Rectangle rectangle_;
+  Component::UI::Rectangle rectangle_{};
 };
 }  // namespace Device

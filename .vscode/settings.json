@@ -40,8 +40,7 @@
         "--enable-config",
         "--fallback-style=Google",
         "--function-arg-placeholders=false",
-        "--header-insertion-decorators",
-        "--header-insertion=iwyu",
+        "--header-insertion=never",
         "--log=verbose",
         "--pch-storage=memory",
         "--pretty",
@@ -50,4 +49,15 @@
     ],
     "clangd.path": "clangd",
     "editor.inlayHints.enabled": "offUnlessPressed",
+    "cmake.options.statusBarVisibility": "visible",
+    "terminal.integrated.defaultProfile.windows": "mysys2-mingw64",
+    "terminal.integrated.profiles.windows": {
+        "mysys2-mingw64": {
+            "path": "cmd.exe",
+            "args": [
+                "/c",
+                "C:\\msys64\\msys2_shell.cmd -defterm -here -no-start -mingw64 -shell bash -use-full-path"
+            ]
+        }
+    }
 }

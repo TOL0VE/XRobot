@@ -1,14 +1,3 @@
-/**
- * @file launcher.h
- * @author Qu Shen (503578404@qq.com)
- * @brief 弹丸发射器模块
- * @version 1.0.0
- * @date 2021-05-04
- *
- * @copyright Copyright (c) 2021
- *
- */
-
 #pragma once
 
 #include <module.hpp>
@@ -48,7 +37,7 @@ class Launcher {
     CHANGE_TRIG_MODE,
     OPEN_COVER,
     CLOSE_COVER,
-    LAUNCHER_START_FIRE,
+    LAUNCHER_START_FIRE, /* 开火，拨弹盘开始发弹 */
   } LauncherEvent;
 
   enum {
@@ -66,7 +55,6 @@ class Launcher {
     LAUNCHER_CTRL_FRIC1_SPEED_IDX = 0, /* 摩擦轮1控制的速度环控制器的索引值 */
     LAUNCHER_CTRL_FRIC2_SPEED_IDX, /* 摩擦轮2控制的速度环控制器的索引值 */
     LAUNCHER_CTRL_TRIG_SPEED_IDX, /* 拨弹电机控制的速度环控制器的索引值 */
-    LAUNCHER_CTRL_TRIG_ANGLE_IDX, /* 拨弹电机控制的角度环控制器的索引值 */
     LAUNCHER_CTRL_NUM,            /* 总共的控制器数量 */
   };
 
@@ -151,13 +139,13 @@ class Launcher {
   static void DrawUIDynamic(Launcher *launcher);
 
  private:
-  float last_wakeup_;
+  uint64_t last_wakeup_ = 0;
 
-  float now_;
+  uint64_t now_ = 0;
 
-  float dt_;
+  float dt_ = 0.0f;
 
-  float trig_angle_;
+  float trig_angle_ = 0.0f;
 
   Param param_;
 
@@ -166,7 +154,7 @@ class Launcher {
   /* PID计算的目标值 */
   struct {
     std::array<float, 2> fric_rpm_; /* 摩擦轮电机转速，单位：RPM */
-    float trig_angle_;              /* 拨弹电机角度，单位：弧度 */
+    float trig_angle_ = 0.0f;       /* 拨弹电机角度，单位：弧度 */
   } setpoint_;
 
   HeatControl heat_ctrl_;

@@ -136,7 +136,7 @@ class MicroSwitchLimit : public LimitCheck {
 
   bool ReachLimit() { return sw_data_.status == MicroSwitch::ON; }
 
-  MicroSwitch::Data sw_data_;
+  MicroSwitch::Data sw_data_{};
 };
 
 /* 自归位限位，在重力作用下自由运动一段时间后就为零点 */
@@ -149,11 +149,13 @@ class AutoReturnLimit : public LimitCheck {
   AutoReturnLimit(Param param)
       : LimitCheck(), param_(param), start_time_(bsp_time_get()) {}
 
-  bool ReachLimit() { return (bsp_time_get() - start_time_) > param_.timeout; }
+  bool ReachLimit() {
+    return TIME_DIFF(start_time_, bsp_time_get()) > param_.timeout;
+  }
 
   Param param_;
 
-  float start_time_;
+  uint64_t start_time_;
 };
 
 typedef enum { AXIS_X, AXIS_Y, AXIS_Z, AXIS_NUM } Axis;
@@ -280,7 +282,7 @@ class SteeringMech {
         error = stream.target_angle_.yaw - stream.angle_.yaw;
         break;
       default:
-        ASSERT(false);
+        XB_ASSERT(false);
         break;
     }
 
@@ -306,11 +308,11 @@ class SteeringMech {
         stream.angle_.yaw += setpoint;
         break;
       default:
-        ASSERT(false);
+        XB_ASSERT(false);
         break;
     }
 
-    mech.Control(setpoint, bsp_time_get() - mech.last_control_time_);
+    mech.Control(setpoint, TIME_DIFF(mech.last_control_time_, bsp_time_get()));
 
     Component::Type::Vector3 transform = mech.param_.translation;
 
@@ -327,7 +329,7 @@ class SteeringMech {
       PosStream& stream, SteeringMech<MotorType, LimitType, Num>& mech_1,
       SteeringMech<MotorType, LimitType, Num>& mech_2) {
     if (mech_1.param_.axis != mech_2.param_.axis) {
-      ASSERT(false);
+      XB_ASSERT(false);
     }
 
     if (!mech_1.Ready() || !mech_2.Ready()) {
@@ -349,7 +351,7 @@ class SteeringMech {
         error = stream.target_angle_.yaw - stream.angle_.yaw;
         break;
       default:
-        ASSERT(false);
+        XB_ASSERT(false);
         break;
     }
 
@@ -373,8 +375,10 @@ class SteeringMech {
 
     setpoint_1 += error;
     setpoint_2 -= error;
-    mech_1.Control(setpoint_1, bsp_time_get() - mech_1.last_control_time_);
-    mech_2.Control(setpoint_2, bsp_time_get() - mech_2.last_control_time_);
+    mech_1.Control(setpoint_1,
+                   TIME_DIFF(mech_1.last_control_time_, bsp_time_get()));
+    mech_2.Control(setpoint_2,
+                   TIME_DIFF(mech_2.last_control_time_, bsp_time_get()));
 
     switch (mech_1.param_.axis) {
       case AXIS_X: {
@@ -423,7 +427,7 @@ class SteeringMech {
         break;
       }
       default:
-        ASSERT(false);
+        XB_ASSERT(false);
         break;
     }
 
@@ -440,7 +444,7 @@ class SteeringMech {
   Param& param_;
   std::array<Component::PosActuator*, Num> pos_actuator_;
   std::array<LimitType*, Num> limit_check_;
-  float last_control_time_ = 0.0f;
+  uint64_t last_control_time_ = 0;
 };
 
 template <typename MotorType, typename LimitType, int Num>
@@ -554,7 +558,7 @@ class LinearMech {
         error = stream.target_pos_.z - stream.pos_.z;
         break;
       default:
-        ASSERT(false);
+        XB_ASSERT(false);
         break;
     }
 
@@ -579,11 +583,11 @@ class LinearMech {
         stream.pos_.z += setpoint;
         break;
       default:
-        ASSERT(false);
+        XB_ASSERT(false);
         break;
     }
 
-    mech.Control(setpoint, bsp_time_get() - mech.last_control_time_);
+    mech.Control(setpoint, TIME_DIFF(mech.last_control_time_, bsp_time_get()));
 
     return stream;
   }
@@ -598,6 +602,6 @@ class LinearMech {
   Param& param_;
   std::array<Component::PosActuator*, Num> pos_actuator_;
   std::array<LimitType*, Num> limit_check_;
-  float last_control_time_ = 0.0f;
+  uint64_t last_control_time_ = 0;
 };
 }  // namespace Device

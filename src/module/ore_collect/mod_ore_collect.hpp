@@ -1,4 +1,3 @@
-#include <thread.hpp>
 #include <vector>
 
 #include "comp_cmd.hpp"
@@ -66,11 +65,11 @@ class OreCollect {
 
   Param& param_;
 
-  float dt_;
+  float dt_ = 0.0f;
 
-  float last_wakeup_;
+  uint64_t last_wakeup_ = 0;
 
-  float now_;
+  uint64_t now_ = 0;
 
   Mode mode_ = RELAX;
 

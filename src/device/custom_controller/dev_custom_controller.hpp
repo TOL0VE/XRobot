@@ -1,5 +1,3 @@
-#include <sys/_stdint.h>
-
 #include "comp_ui.hpp"
 #include "device.hpp"
 
@@ -8,7 +6,7 @@ class CustomController {
  public:
   CustomController();
 
-  typedef enum { NUM = 31 } ControllerEvent;
+  typedef enum { NUM = 144 } ControllerEvent;
 
   bool StartRecv();
 
@@ -25,6 +23,6 @@ class CustomController {
   Message::Event event_;
   System::Thread recv_thread_;
   System::Thread trans_thread_;
-  Component::CMD::Data controller_data_;
+  Component::CMD::Data controller_data_{};
 };
 }  // namespace Device

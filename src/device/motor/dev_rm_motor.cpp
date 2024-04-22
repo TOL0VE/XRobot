@@ -1,7 +1,5 @@
 #include "dev_rm_motor.hpp"
 
-#include <sys/_stdint.h>
-
 #include "bsp_time.h"
 
 /* 电机最大控制输出绝对值 */
@@ -19,11 +17,10 @@
 
 using namespace Device;
 
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 uint8_t RMMotor::motor_tx_buff_[BSP_CAN_NUM][MOTOR_CTRL_ID_NUMBER][8];
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+
 uint8_t RMMotor::motor_tx_flag_[BSP_CAN_NUM][MOTOR_CTRL_ID_NUMBER];
-// NOLINTNEXTLINE(modernize-avoid-c-arrays)
+
 uint8_t RMMotor::motor_tx_map_[BSP_CAN_NUM][MOTOR_CTRL_ID_NUMBER];
 
 RMMotor::RMMotor(const Param &param, const char *name)
@@ -35,15 +32,18 @@ RMMotor::RMMotor(const Param &param, const char *name)
   switch (param.id_control) {
     case M3508_M2006_CTRL_ID_BASE:
       this->index_ = 0;
+      XB_ASSERT(param.id_feedback > 0x200 && param.id_feedback <= 0x204);
       break;
     case M3508_M2006_CTRL_ID_EXTAND:
       this->index_ = 1;
+      XB_ASSERT(param.id_feedback > 0x204 && param.id_feedback <= 0x208);
       break;
     case GM6020_CTRL_ID_EXTAND:
       this->index_ = 2;
+      XB_ASSERT(param.id_feedback > 0x208 && param.id_feedback <= 0x20B);
       break;
     default:
-      ASSERT(false);
+      XB_ASSERT(false);
   }
   switch (param.model) {
     case MOTOR_M2006:
@@ -66,9 +66,9 @@ RMMotor::RMMotor(const Param &param, const char *name)
   }
 
   auto rx_callback = [](Can::Pack &rx, RMMotor *motor) {
-    motor->recv_.OverwriteFromISR(rx);
+    motor->recv_.Overwrite(rx);
 
-    motor->last_online_time_ = bsp_time_get();
+    motor->last_online_time_ = bsp_time_get_ms();
 
     return true;
   };
@@ -79,13 +79,19 @@ RMMotor::RMMotor(const Param &param, const char *name)
 
   Can::Subscribe(motor_tp, this->param_.can, this->param_.id_feedback, 1);
 
+  if ((motor_tx_map_[this->param_.can][this->index_] & (1 << (this->num_))) !=
+      0) {
+    /* Error: ID duplicate */
+    XB_ASSERT(false);
+  }
+
   motor_tx_map_[this->param_.can][this->index_] |= 1 << (this->num_);
 }
 
 bool RMMotor::Update() {
   Can::Pack pack;
 
-  while (this->recv_.Receive(pack, 0)) {
+  while (this->recv_.Receive(pack)) {
     if ((pack.index == this->param_.id_feedback) &&
         (MOTOR_NONE != this->param_.model)) {
       this->Decode(pack);
@@ -127,6 +133,7 @@ float RMMotor::GetLSB() {
 void RMMotor::Control(float out) {
   if (this->feedback_.temp > 75.0f) {
     out = 0.0f;
+    OMLOG_WARNING("motor %s high temperature detected", name_);
   }
 
   clampf(&out, -1.0f, 1.0f);

@@ -4,7 +4,7 @@
 
 #include "comp_utils.hpp"
 
-#include <cstring>
+#include "bsp_def.h"
 
 /**
  * @brief 计算平方根倒数
@@ -46,7 +46,7 @@ float abs_clampf(float x, float limit) { return MIN(limit, MAX(x, -limit)); }
  * @param hi 上限
  */
 void clampf(float *origin, float lo, float hi) {
-  ASSERT(origin);
+  XB_ASSERT(origin);
   *origin = MIN(hi, MAX(*origin, lo));
 }
 
@@ -85,37 +85,20 @@ float bullet_speed_to_fric_rpm(float bullet_speed, float fric_radius,
       return 5200.f;
     }
     if (bullet_speed == 30.0f) {
-      return 7350.f;
+      return 7400.f;
     }
   } else {
     if (bullet_speed == 10.0f) {
       return 4450.f;
     }
     if (bullet_speed == 16.0f) {
-      return 5800.f;
+      return 5750.f;
     }
   }
 
   // TODO:
   /* 不为裁判系统设定值时,计算转速 */
   return 60.0f * bullet_speed / (M_2PI * fric_radius);
-}
-
-bool gyro_is_stable(Component::Type::Vector3 *gyro) {
-  return ((gyro->x < 0.03f) && (gyro->y < 0.03f) && (gyro->z < 0.03f));
-}
-
-/**
- * @brief 断言失败处理
- *
- * @param file 文件名
- * @param line 行号
- */
-void verify_failed(const char *file, uint32_t line) {
-  static_cast<void>(file);
-  static_cast<void>(line);
-  while (1) {
-  }
 }
 
 int float_to_uint(float x, float x_min, float x_max, int bits) {

@@ -16,9 +16,12 @@
 #endif
 
 /* 非阻塞延时函数 */
-#include "bsp_delay.h"
-#define om_delay_ms bsp_delay
-
+#include "bsp_time.h"
+__attribute__((unused)) static void om_delay_ms(uint32_t ms) {
+  uint32_t last_time = bsp_time_get_ms();
+  while ((bsp_time_get_ms() - last_time) < ms) {
+  }
+}
 /* OS层互斥锁api */
 #define om_mutex_t uint8_t
 #define om_mutex_init(arg) (void)arg, OM_OK
@@ -47,3 +50,6 @@
 
 /* 话题名称最大长度 */
 #define OM_TOPIC_MAX_NAME_LEN (25)
+
+#include "bsp_sys.h"
+static inline bool om_in_isr() { return bsp_sys_in_isr(); }

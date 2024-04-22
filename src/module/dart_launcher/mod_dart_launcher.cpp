@@ -1,9 +1,5 @@
 #include "mod_dart_launcher.hpp"
 
-#include <comp_utils.hpp>
-#include <string>
-#include <thread.hpp>
-
 #include "bsp_time.h"
 
 #define MAX_FRIC_SPEED (7500.0f)
@@ -28,11 +24,11 @@ DartLauncher::DartLauncher(DartLauncher::Param& param, float control_freq)
   auto event_callback = [](Event event, DartLauncher* dart) {
     switch (event) {
       case RELOAD:
-        if (bsp_time_get() - dart->last_reload_time_ < 0.5f) {
+        if (bsp_time_get_ms() - dart->last_reload_time_ < 500) {
           return;
         } else {
-          dart->last_reload_time_ = bsp_time_get();
-          dart->setpoint_.reload += 0.25;
+          dart->last_reload_time_ = bsp_time_get_ms();
+          dart->setpoint_.reload += 0.013;
           clampf(&dart->setpoint_.reload, 0, 1.0);
         }
         dart->setpoint_.fric_speed = 0;
@@ -42,12 +38,12 @@ DartLauncher::DartLauncher(DartLauncher::Param& param, float control_freq)
         dart->setpoint_.fric_speed = 0;
         break;
       case ON:
-        dart->setpoint_.rod = 0.9f;
+        dart->setpoint_.rod = 1.0f;
         dart->setpoint_.fric_speed = 1.0f;
         break;
       case OFF:
         dart->setpoint_.fric_speed = 0;
-        dart->setpoint_.rod = 0.1f;
+        dart->setpoint_.rod = 0.0f;
         break;
     }
   };
@@ -56,11 +52,13 @@ DartLauncher::DartLauncher(DartLauncher::Param& param, float control_freq)
                                                       this->param_.EVENT_MAP);
 
   auto thread_fn = [](DartLauncher* dart) {
+    uint32_t last_online_time = bsp_time_get_ms();
+
     while (true) {
       dart->UpdateFeedback();
       dart->Control();
 
-      dart->thread_.SleepUntil(2);
+      dart->thread_.SleepUntil(2, last_online_time);
     }
   };
 
@@ -79,7 +77,8 @@ void DartLauncher::UpdateFeedback() {
 void DartLauncher::Control() {
   this->now_ = bsp_time_get();
 
-  this->dt_ = this->now_ - this->last_wakeup_;
+  this->dt_ = TIME_DIFF(this->last_wakeup_, this->now_);
+
   this->last_wakeup_ = this->now_;
 
   this->rod_actr_.Control(this->setpoint_.rod * this->param_.rod_actr.max_range,

@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-#include "bsp_delay.h"
 #include "main.h"
 #include "tusb.h"
 
@@ -20,7 +19,7 @@ bsp_status_t bsp_usb_transmit(const uint8_t *buffer, uint32_t len) {
       tud_cdc_write_flush();
       buffer += avil;
       len -= avil;
-      bsp_delay(1);
+      HAL_Delay(0);
     }
   }
   return BSP_OK;
@@ -69,8 +68,9 @@ static void bsp_usb_callback(bsp_usb_callback_t cb_type, bsp_usb_t bsp_usb) {
   }
 }
 
-int8_t bsp_usb_register_callback(bsp_usb_t usb, bsp_usb_callback_t type,
-                                 void (*callback)(void *), void *callback_arg) {
+bsp_status_t bsp_usb_register_callback(bsp_usb_t usb, bsp_usb_callback_t type,
+                                       void (*callback)(void *),
+                                       void *callback_arg) {
   assert_param(callback);
   assert_param(type != BSP_USB_CB_NUM);
 
